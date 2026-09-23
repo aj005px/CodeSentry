@@ -1,0 +1,149 @@
+[
+  {
+    "pair_id": "divzero_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def divide(a, b):\n    return a / b",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 2,
+          "problem": "No handling for division by zero",
+          "explanation": "If b is 0, this raises a ZeroDivisionError at runtime instead of being handled gracefully.",
+          "fix": "Add a check for b == 0 and raise a clear exception or return an appropriate value."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def divide(a, b):\n    if b == 0:\n        raise ValueError(\"Cannot divide by zero\")\n    return a / b",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "sql_injection_1",
+    "category": "Security",
+    "buggy": {
+      "code": "def get_user(username):\n    query = \"SELECT * FROM users WHERE username = '\" + username + \"'\"\n    cursor.execute(query)\n    return cursor.fetchone()",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 2,
+          "problem": "SQL injection vulnerability",
+          "explanation": "User input is concatenated directly into the SQL query string, allowing an attacker to inject arbitrary SQL.",
+          "fix": "Use parameterized queries: cursor.execute(\"SELECT * FROM users WHERE username = ?\", (username,))"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_user(username):\n    query = \"SELECT * FROM users WHERE username = ?\"\n    cursor.execute(query, (username,))\n    return cursor.fetchone()",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "mutable_default_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def add_item(item, items=[]):\n    items.append(item)\n    return items",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 1,
+          "problem": "Mutable default argument",
+          "explanation": "Default arguments are evaluated once at function definition time. Using a mutable list means it persists and accumulates values across calls, causing unexpected shared state.",
+          "fix": "Use None as the default and create a new list inside the function: def add_item(item, items=None): items = items or []"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def add_item(item, items=None):\n    if items is None:\n        items = []\n    items.append(item)\n    return items",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "resource_leak_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def read_config(path):\n    f = open(path)\n    data = f.read()\n    return data",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Medium",
+          "line": 2,
+          "problem": "File handle not closed",
+          "explanation": "The file is opened but never explicitly closed, which can leak file descriptors, especially if an exception occurs before the function returns.",
+          "fix": "Use a with statement to ensure the file is automatically closed: with open(path) as f: return f.read()"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def read_config(path):\n    with open(path) as f:\n        return f.read()",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "off_by_one_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def get_last_element(arr):\n    return arr[len(arr)]",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 2,
+          "problem": "Off-by-one index error",
+          "explanation": "Valid indices for a list of length n are 0 to n-1. arr[len(arr)] is out of bounds and will raise an IndexError.",
+          "fix": "Use arr[len(arr) - 1] or arr[-1] to get the last element."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_last_element(arr):\n    return arr[-1]",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "closure_loop_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "for (var i = 1; i <= 5; i++) {\n  setTimeout(function() {\n    console.log(i);\n  }, 1000);\n}",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 1,
+          "problem": "Closure captures shared loop variable",
+          "explanation": "var is function-scoped, not block-scoped, so all five callbacks share the same i. By the time the timeouts fire, i has already reached 6.",
+          "fix": "Use let instead of var to give each iteration its own scoped binding: for (let i = 1; i <= 5; i++) { ... }"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "for (let i = 1; i <= 5; i++) {\n  setTimeout(function() {\n    console.log(i);\n  }, 1000);\n}",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "bare_except_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def load_data(path):\n    try:\n        return json.load(open(path))\n    except:\n        return None",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Medium",
+          "line": 4,
+          "problem": "Bare except clause",
+          "explanation": "A bare except catches all exceptions, including KeyboardInterrupt and SystemExit, and silently swallows real errors, making debugging difficult.",
+          "fix": "Catch specific exceptions, e.g. except (FileNotFoundError, json.JSONDecodeError) as e: and consider logging the error."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def load_data(path):\n    try:\n        return json.load(open(path))\n    except (FileNotFoundError, json.JSONDecodeError) as e:\n        logging.error(f\"Failed to load {path}: {e}\")\n        return None",
+      "issues": []
+    }
+  }
+]
