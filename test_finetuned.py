@@ -10,7 +10,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 from peft import PeftModel
 
 BASE_MODEL_PATH = "./models/qwen2.5-coder-3b"
-ADAPTER_PATH = "./dataset_project/lora-code-reviewer"
+ADAPTER_PATH = "./lora-code-reviewer-v2"
 
 # Same import as test.py: inference must use the exact prompt used in training.
 from dataset_project.build_dataset import SYSTEM_PROMPT

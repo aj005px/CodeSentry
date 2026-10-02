@@ -1,0 +1,11 @@
+{% for message in messages %}
+{{- '<|im_start|>' + message['role'] + '\n' }}
+{% if message['role'] == 'assistant' %}
+{% generation %}
+{{- message['content'] + '<|im_end|>' }}
+{% endgeneration %}
+{% else %}
+{{- message['content'] + '<|im_end|>' }}
+{% endif %}
+{{- '\n' }}
+{% endfor %}
