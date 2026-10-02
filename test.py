@@ -2,18 +2,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 MODEL_PATH = "./models/qwen2.5-coder-3b"
 
-# Winning prompt from testing: full schema, no "if no issues" escape-hatch line
-# (that line was suppressing real bug detection in smaller-model testing).
-SYSTEM_PROMPT = """You are a code review assistant. Given a code snippet, \
-identify issues and return them in this exact format for each issue found:
-
-Category: [Bug|Performance|Quality|Security]
-Severity: [Low|Medium|High]
-Line: <line number>
-Problem: <one-line description>
-Explanation: <why this is a problem>
-Suggested Fix: <concrete fix>
-"""
+# Import the prompt from the dataset builder so inference and training can never
+# drift apart. A prompt mismatch between the two is indistinguishable from a
+# bad fine-tune, so it is worth removing as a class of bug.
+from dataset_project.build_dataset import SYSTEM_PROMPT
 
 print("Loading model...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)

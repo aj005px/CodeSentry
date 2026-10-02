@@ -1,0 +1,110 @@
+{
+  "_comment": "Standalone examples that pairs_seed/pairs_expanded cannot express: snippets with MULTIPLE issues, and clean snippets that deliberately resemble vulnerable patterns (hard negatives). The hard negatives matter most: without them 'No issues found' is learnable as 'this snippet looks like the safe half of a training pair', which is the observed failure mode.",
+  "examples": [
+
+    {"id": "multi_1", "category": "Security", "code": "import sqlite3\n\ndef login(username, password):\n    conn = sqlite3.connect('app.db')\n    cur = conn.cursor()\n    cur.execute(\"SELECT id, password FROM users WHERE username = '\" + username + \"'\")\n    row = cur.fetchone()\n    if row and row[1] == password:\n        return row[0]\n    return None",
+     "issues": [
+       {"category": "Security", "severity": "High", "line": 6, "problem": "SQL injection: username is concatenated into the query text", "explanation": "The username value is interpolated directly into the SQL string, so an attacker can terminate the literal and append their own clauses, for example ' OR '1'='1 to bypass authentication.", "fix": "Bind the value as a parameter: cur.execute('SELECT id, password FROM users WHERE username = ?', (username,))"},
+       {"category": "Security", "severity": "High", "line": 8, "problem": "Password compared in plaintext with ==", "explanation": "The stored value is compared directly, so the schema must hold recoverable passwords and the comparison is not constant time, leaking information through timing.", "fix": "Store a salted hash (argon2 or bcrypt) and compare with a constant-time helper such as hmac.compare_digest."},
+       {"category": "Quality", "severity": "Low", "line": 5, "problem": "Connection is never closed", "explanation": "sqlite3 connections are left open when login returns, leaking a file descriptor per call.", "fix": "Use a context manager (with sqlite3.connect(...) as conn) or close explicitly on both return paths."}]},
+
+    {"id": "multi_2", "category": "Bug", "code": "def find_max(values):\n    best = values[0]\n    for v in values:\n        if v > best:\n            best = v\n    return best",
+     "issues": [
+       {"category": "Bug", "severity": "High", "line": 2, "problem": "Indexing [0] raises IndexError on an empty sequence", "explanation": "The function dereferences values[0] before any length check, so calling find_max([]) throws instead of returning a sensible empty result.", "fix": "Guard the empty case first: if not values: return None"},
+       {"category": "Bug", "severity": "Medium", "line": 4, "problem": "Variable v shadows the earlier name and the comparison silently fails for None", "explanation": "Using the same identifier for the loop element as for the function parameter invites confusion, and comparing None with > raises TypeError at runtime when the list contains None.", "fix": "Rename the loop variable and skip or reject None entries explicitly."}]},
+
+    {"id": "multi_3", "category": "Bug", "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    char *name = malloc(32)\n    scanf(\"%31s\", name);\n    printf(\"hello %s\\n\", name);\n    return 0;\n}",
+     "issues": [
+       {"category": "Bug", "severity": "High", "line": 6, "problem": "Missing semicolon after the declaration", "explanation": "The statement is unterminated, so the compiler reports 'expected ;' before scanf and produces no binary.", "fix": "Terminate the declaration: char *name = malloc(32);"},
+       {"category": "Bug", "severity": "High", "line": 10, "problem": "Allocated buffer is never freed", "explanation": "name is allocated and then abandoned, leaking 32 bytes each time main runs.", "fix": "Call free(name) before returning."},
+       {"category": "Bug", "severity": "Medium", "line": 7, "problem": "Return value of scanf is not checked", "explanation": "If the input is not a string, scanf returns 0 or EOF and name holds uninitialised bytes, which are then printed as if they were user input.", "fix": "Check the return value and handle failure before using name."}]},
+
+    {"id": "multi_4", "category": "Security", "code": "def upload(target_dir, filename, content):\n    full = os.path.join(target_dir, filename)\n    with open(full, 'wb') as fh:\n        fh.write(content)\n    os.system('chmod 777 ' + full)",
+     "issues": [
+       {"category": "Security", "severity": "High", "line": 2, "problem": "Path traversal: filename is joined without validation", "explanation": "A filename containing ../ escapes target_dir and lets an attacker overwrite arbitrary files the process can write to.", "fix": "Resolve the path and verify it stays under target_dir, and prefer a fixed name from a server-generated identifier."},
+       {"category": "Security", "severity": "High", "line": 5, "problem": "Command injection via os.system with an interpolated path", "explanation": "full is attacker-influenced through filename and is passed to a shell, so shell metacharacters execute arbitrary commands.", "fix": "Use os.chmod(full, 0o644) instead of shelling out."},
+       {"category": "Security", "severity": "Medium", "line": 5, "problem": "World-writable permissions on an uploaded file", "explanation": "chmod 777 makes the upload readable and writable by every local user, so any process on the host can modify it.", "fix": "Set the narrowest permissions the application needs, typically 0o644."}]},
+
+    {"id": "multi_5", "category": "Bug", "code": "async function loadProfile(id, cache) {\n  const res = await fetch(`/api/users/${id}`);\n  const data = res.json();\n  cache.set(id, data);\n  return data;\n}",
+     "issues": [
+       {"category": "Bug", "severity": "High", "line": 3, "problem": "res.json() is not awaited, so data is a pending Promise", "explanation": "fetch resolves with a Response, and .json() returns a new Promise. Caching and returning that Promise puts a Promise object into the cache and hands an unresolved promise to the caller.", "fix": "Await it: const data = await res.json();"},
+       {"category": "Bug", "severity": "Medium", "line": 2, "problem": "No check on res.ok, so a 404 or 500 body is cached as a valid profile", "explanation": "Error responses still parse as JSON, and caching the error body means every later read returns the failure until the entry expires.", "fix": "Throw when !res.ok before reading the body."}]},
+
+    {"id": "multi_6", "category": "Bug", "code": "def apply_discounts(items):\n    for item in items:\n        if item['type'] == 'sale':\n            item['price'] = item['price'] * 0.9\n    return items[0:len(items)]",
+     "issues": [
+       {"category": "Bug", "severity": "Medium", "line": 4, "problem": "item['price'] raises KeyError when the key is absent", "explanation": "Direct indexing on a partially populated record aborts the whole batch instead of skipping the malformed row.", "fix": "Use item.get('price') and skip rows that are missing the field."},
+       {"category": "Quality", "severity": "Low", "line": 5, "problem": "items[0:len(items)] is a redundant copy of the entire list", "explanation": "Slicing to len(items) returns every element but allocates a new list, which reads as if it trims something when it does not.", "fix": "Return items directly."}]},
+
+    {"id": "hn_1", "category": "hard_negative", "code": "import subprocess\n\ndef ping(host):\n    subprocess.run([\"ping\", \"-c\", \"1\", host], check=True)\n",
+     "issues": [], "note": "looks like the command-injection training shape, but list args without shell=True is safe"},
+
+    {"id": "hn_2", "category": "hard_negative", "code": "import sqlite3\n\ndef fetch(db_path, email):\n    conn = sqlite3.connect(db_path)\n    with conn:\n        cur = conn.cursor()\n        cur.execute(\"SELECT id FROM users WHERE email = ?\", (email,))\n        row = cur.fetchone()\n    return row[0] if row else None\n",
+     "issues": [], "note": "looks like SQL string-building but uses bound parameters"},
+
+    {"id": "hn_3", "category": "hard_negative", "code": "import yaml\n\ndef load_settings(text):\n    # Parsed with safe_load so only plain YAML types are constructed.\n    return yaml.safe_load(text)\n",
+     "issues": [], "note": "mentions deserialization but is the safe form"},
+
+    {"id": "hn_4", "category": "hard_negative", "code": "def read_note(base, name):\n    base = os.path.realpath(base)\n    full = os.path.realpath(os.path.join(base, name))\n    if not full.startswith(base + os.sep):\n        raise ValueError(\"path escapes base directory\")\n    with open(full) as fh:\n        return fh.read()\n",
+     "issues": [], "note": "mentions path joining but validates containment"},
+
+    {"id": "hn_5", "category": "hard_negative", "code": "import hmac\nimport hashlib\n\ndef matches(token, provided, secret):\n    expected = hmac.new(secret.encode(), token.encode(), hashlib.sha256).hexdigest()\n    return hmac.compare_digest(expected, provided)\n",
+     "issues": [], "note": "looks like weak-hash usage but it is an HMAC, not a password hash"},
+
+    {"id": "hn_6", "category": "hard_negative", "code": "def compute_settings(payload):\n    # Fixed: no longer interpolates the payload into a shell string.\n    return subprocess.run([\"settings\", \"--apply\", payload], capture_output=True, text=True).stdout\n",
+     "issues": [], "note": "comment claims a fix AND the fix is genuinely present - balanced against the near-miss family"},
+
+    {"id": "hn_7", "category": "hard_negative", "code": "def read_rows(path):\n    # Fixed: the handle is now closed on every exit path.\n    with open(path, newline=\"\") as fh:\n        return list(csv.DictReader(fh))\n",
+     "issues": [], "note": "comment claims a fix AND the context manager really is used"},
+
+    {"id": "hn_8", "category": "hard_negative", "code": "import os\n\ndef run_report(name):\n    # Fixed: no shell involved, arguments passed as a list.\n    os.spawnv('/usr/bin/tar', ['tar', '-czf', name + '.tar.gz', './data'])\n",
+     "issues": [], "note": "comment claims a fix and the code honours it"},
+
+    {"id": "hn_9", "category": "hard_negative", "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    char buf[32];\n    const char *src = getenv(\"NAME\");\n    if (!src) return 1;\n    snprintf(buf, sizeof buf, \"%s\", src);\n    printf(\"hello %s\\n\", buf);\n    free(NULL);\n    return 0;\n}\n",
+     "issues": [], "note": "bounded copy via snprintf, so no overflow"},
+
+    {"id": "hn_10", "category": "hard_negative", "code": "#include <stdio.h>\n\nint sum(const int *v, int n) {\n    int total = 0;\n    for (int i = 0; i < n; i++) {\n        total += v[i];\n    }\n    return total;\n}\n",
+     "issues": [], "note": "loop bound looks unusual but n is exclusive and correct"},
+
+    {"id": "hn_11", "category": "hard_negative", "code": "for (var i = 0; i < 3; i++) {\n  (function (n) {\n    setTimeout(function () { console.log(n); }, 0);\n  })(i);\n}\n",
+     "issues": [], "note": "uses var but an IIFE binds the value per iteration, so the closure is safe"},
+
+    {"id": "hn_12", "category": "hard_negative", "code": "def total_price(cart):\n    subtotal = 0.0\n    for line in cart:\n        subtotal += line['unit_price'] * line['qty']\n    return round(subtotal, 2)\n",
+     "issues": [], "note": "float accumulation is usually fine at this precision for a cart total"},
+
+    {"id": "hn_13", "category": "hard_negative", "code": "import ast\n\ndef parse_value(text):\n    return ast.literal_eval(text)\n",
+     "issues": [], "note": "looks like eval on untrusted input but literal_eval only builds literals"},
+
+    {"id": "hn_14", "category": "hard_negative", "code": "import time\nfrom contextlib import contextmanager\n\n@contextmanager\ndef timed(label):\n    start = time.monotonic()\n    try:\n        yield\n    finally:\n        print(f\"{label}: {time.monotonic() - start:.3f}s\")\n",
+     "issues": [], "note": "structurally identical to the mislabelled clean_standalone_2 but with time imported"},
+
+    {"id": "hn_15", "category": "hard_negative", "code": "def chunk(items, size):\n    if size <= 0:\n        raise ValueError(\"size must be positive\")\n    return [items[i:i + size] for i in range(0, len(items), size)]\n",
+     "issues": [], "note": "range step looks like it could be off by one but it is correct"},
+
+    {"id": "hn_16", "category": "hard_negative", "code": "def redact(token):\n    if len(token) < 8:\n        return '***'\n    return token[:4] + '...' + token[-4:]\n",
+     "issues": [], "note": "slicing on both ends could look like an off-by-one but is correct"},
+
+    {"id": "hn_17", "category": "hard_negative", "code": "def merge_sort(values):\n    if len(values) <= 1:\n        return values\n    mid = len(values) // 2\n    left = merge_sort(values[:mid])\n    right = merge_sort(values[mid:])\n    return sorted(left + right)\n",
+     "issues": [], "note": "mid could look off by one; both halves are correct here"},
+
+    {"id": "hn_18", "category": "hard_negative", "code": "import os\n\ndef expand(path):\n    return os.path.abspath(os.path.expanduser(path))\n",
+     "issues": [], "note": "touches paths but performs no read or write, so there is nothing to validate yet"},
+
+    {"id": "clean_extra_1", "category": "correct", "code": "def retry(fn, attempts=3):\n    last = None\n    for _ in range(attempts):\n        try:\n            return fn()\n        except (ConnectionError, TimeoutError) as exc:\n            last = exc\n    raise last\n",
+     "issues": []},
+
+    {"id": "clean_extra_2", "category": "correct", "code": "def normalise(rows):\n    out = {}\n    for row in rows:\n        key = row['id']\n        if key in out:\n            raise ValueError(f'duplicate id {key}')\n        out[key] = row\n    return out\n",
+     "issues": []},
+
+    {"id": "clean_extra_3", "category": "correct", "code": "def percent(part, whole):\n    if whole == 0:\n        return 0.0\n    return 100.0 * part / whole\n",
+     "issues": []},
+
+    {"id": "clean_extra_4", "category": "correct", "code": "#include <stdio.h>\n\nint main(int argc, char **argv) {\n    for (int i = 1; i < argc; i++) {\n        printf(\"%s\\n\", argv[i]);\n    }\n    return 0;\n}\n",
+     "issues": []},
+
+    {"id": "clean_extra_5", "category": "correct", "code": "function debounce(fn, wait) {\n  let timer = null;\n  return function (...args) {\n    if (timer) clearTimeout(timer);\n    timer = setTimeout(() => fn.apply(this, args), wait);\n  };\n}\n",
+     "issues": []},
+
+    {"id": "clean_extra_6", "category": "correct", "code": "import json\n\ndef write_json(path, payload):\n    with open(path, 'w') as fh:\n        json.dump(payload, fh, indent=2)\n",
+     "issues": []}
+  ]
+}

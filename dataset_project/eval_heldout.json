@@ -1,0 +1,63 @@
+{
+  "_comment": "Held-out evaluation set for the code-review LoRA. NOT derived from pairs_seed.json - every snippet was written independently for this eval. Balanced across bug categories with a ~30% clean/secure majority-target guard. 'expect_issue' is the ground-truth verdict used for scoring.",
+  "cases": [
+    {"id": "sql_inj_1", "category": "sql_injection", "lang": "python", "expect_issue": true, "code": "def lookup_account(acct):\n    q = \"SELECT balance FROM accounts WHERE acct = '\" + acct + \"'\"\n    return db.execute(q).fetchone()"},
+    {"id": "sql_inj_2", "category": "sql_injection", "lang": "python", "expect_issue": true, "code": "def find_orders(status):\n    sql = \"SELECT * FROM orders WHERE status = '\" + status + \"' ORDER BY id DESC\"\n    return conn.cursor().execute(sql)"},
+
+    {"id": "cmd_inj_1", "category": "command_injection", "lang": "python", "expect_issue": true, "code": "import os\n\ndef disk_usage(path):\n    os.system(\"du -sh \" + path)"},
+    {"id": "cmd_inj_2", "category": "command_injection", "lang": "javascript", "expect_issue": true, "code": "const { exec } = require('child_process');\nexec(`git checkout ${req.body.branch}`);"},
+
+    {"id": "xss_1", "category": "xss", "lang": "javascript", "expect_issue": true, "code": "function renderProfile(bio) {\n  document.getElementById('bio').innerHTML = bio;\n}"},
+    {"id": "xss_2", "category": "xss", "lang": "python", "expect_issue": true, "code": "def build_row(name):\n    return \"<tr><td>\" + name + \"</td></tr>\""},
+
+    {"id": "path_trav_1", "category": "path_traversal", "lang": "python", "expect_issue": true, "code": "def serve_report(base, name):\n    with open(base + \"/\" + name) as fh:\n        return fh.read()"},
+    {"id": "path_trav_2", "category": "path_traversal", "lang": "java", "expect_issue": true, "code": "public String read(String root, String rel) throws IOException {\n    File f = new File(root, rel);\n    return new String(Files.readAllBytes(f.toPath()));\n}"},
+
+    {"id": "deser_1", "category": "insecure_deserialization", "lang": "python", "expect_issue": true, "code": "import yaml\n\ndef load_settings(blob):\n    return yaml.load(blob, Loader=yaml.Loader)"},
+    {"id": "deser_2", "category": "insecure_deserialization", "lang": "php", "expect_issue": true, "code": "<?php\n$obj = unserialize($_COOKIE['user_state']);\necho $obj->role;\n?>"},
+
+    {"id": "auth_1", "category": "auth_bug", "lang": "python", "expect_issue": true, "code": "def is_admin(user):\n    return user.is_staff or user.role == \"admin\""},
+    {"id": "auth_2", "category": "auth_bug", "lang": "javascript", "expect_issue": true, "code": "app.get('/admin', function (req, res) {\n  res.send(renderDashboard());\n});"},
+    {"id": "auth_3", "category": "auth_bug", "lang": "python", "expect_issue": true, "code": "def check_token(tok):\n    return decode_token(tok) is not None"},
+
+    {"id": "py_syntax_1", "category": "python_syntax", "lang": "python", "expect_issue": true, "code": "def total(values):\n    result = 0\n    for v in values:\n        result += v\n    return result\n"},
+    {"id": "py_syntax_2", "category": "python_syntax", "lang": "python", "expect_issue": true, "code": "def handle(req):\n    if req.method == \"GET\"\n        return send(req.args)\n    return None"},
+    {"id": "py_syntax_3", "category": "python_syntax", "lang": "python", "expect_issue": true, "code": "def count(items):\n    return len(items) - 1\n\nresult = count([1, 2, 3"},
+
+    {"id": "py_logic_1", "category": "python_logic", "lang": "python", "expect_issue": true, "code": "def is_even(n):\n    return n % 2 == 1"},
+    {"id": "py_logic_2", "category": "python_logic", "lang": "python", "expect_issue": true, "code": "def dedupe(rows):\n    seen = {}\n    out = []\n    for r in rows:\n        if r not in seen:\n            seen[r] = True\n            out.append(r)\n    return out[:len(out) // 2]"},
+    {"id": "py_logic_3", "category": "python_logic", "lang": "python", "expect_issue": true, "code": "def clamp(value, low, high):\n    if value < low:\n        return high\n    if value > high:\n        return low\n    return value"},
+    {"id": "py_logic_4", "category": "python_logic", "lang": "python", "expect_issue": true, "code": "def average(nums):\n    return sum(nums) / len(nums)"},
+
+    {"id": "js_closure_1", "category": "js_closure_async", "lang": "javascript", "expect_issue": true, "code": "var ids = [1, 2, 3];\nids.forEach(function (id) {\n  setTimeout(function () { console.log(id); }, 500);\n});"},
+    {"id": "js_closure_2", "category": "js_closure_async", "lang": "javascript", "expect_issue": true, "code": "const jobs = ['a', 'b'];\nfor (var j = 0; j < jobs.length; j++) {\n  queue.push(() => process(jobs[j]));\n}"},
+    {"id": "js_closure_3", "category": "js_closure_async", "lang": "javascript", "expect_issue": true, "code": "async function loadAll(ids) {\n  ids.forEach(async function (id) {\n    const r = await fetch(`/api/${id}`);\n    results.push(await r.json());\n  });\n}"},
+
+    {"id": "c_syntax_1", "category": "c_syntax", "lang": "c", "expect_issue": true, "code": "#include <stdio.h>\n\nint main(void) {\n    int n = 5;\n    if (n > 0) {\n        printf(\"positive\\n\");\n    }\n    return 0;\n}"},
+    {"id": "c_syntax_2", "category": "c_syntax", "lang": "c", "expect_issue": true, "code": "#include <stdlib.h>\n\nint twice(int x) {\n    return x * 2;\n}"},
+
+    {"id": "cpp_syntax_1", "category": "cpp_syntax", "lang": "cpp", "expect_issue": true, "code": "#include <vector>\n\nint sum(const std::vector<int>& v) {\n    int total = 0;\n    for (int i = 0; i <= v.size(); i++) {\n        total += v[i];\n    }\n    return total;\n}"},
+
+    {"id": "c_mem_1", "category": "c_memory", "lang": "c", "expect_issue": true, "code": "#include <string.h>\n\nvoid copy_name(char *dst, const char *src) {\n    strcpy(dst, src);\n}"},
+    {"id": "c_mem_2", "category": "c_memory", "lang": "c", "expect_issue": true, "code": "#include <stdlib.h>\n\nint *make_buffer(int n) {\n    int *buf = malloc(n);\n    buf[0] = 1;\n    return buf;\n}"},
+
+    {"id": "null_ptr_1", "category": "null_pointer", "lang": "python", "expect_issue": true, "code": "def get_city(user):\n    address = user.get_address()\n    return address.get_city()"},
+    {"id": "null_ptr_2", "category": "null_pointer", "lang": "c", "expect_issue": true, "code": "#include <stdio.h>\n\nint len_of(node *n) {\n    return n->next->count;\n}"},
+
+    {"id": "off_by_one_1", "category": "off_by_one", "lang": "python", "expect_issue": true, "code": "def drop_last(items):\n    return items[:len(items) - 1]"},
+    {"id": "off_by_one_2", "category": "off_by_one", "lang": "python", "expect_issue": true, "code": "def range_indices(n):\n    return list(range(1, n))"},
+    {"id": "off_by_one_3", "category": "off_by_one", "lang": "c", "expect_issue": true, "code": "#include <stdio.h>\n\nvoid print_ids(int *ids, int n) {\n    for (int i = 0; i <= n; i++) {\n        printf(\"%d\\n\", ids[i]);\n    }\n}"},
+
+    {"id": "clean_1", "category": "correct", "lang": "python", "expect_issue": false, "code": "def median(values):\n    if not values:\n        return None\n    s = sorted(values)\n    mid = len(s) // 2\n    if len(s) % 2:\n        return s[mid]\n    return (s[mid - 1] + s[mid]) / 2"},
+    {"id": "clean_2", "category": "correct", "lang": "python", "expect_issue": false, "code": "def safe_divide(a, b):\n    if b == 0:\n        return None\n    return a / b"},
+    {"id": "clean_3", "category": "secure", "lang": "python", "expect_issue": false, "code": "import sqlite3\n\ndef find_email(conn, email):\n    cur = conn.cursor()\n    cur.execute(\"SELECT id FROM users WHERE email = ?\", (email,))\n    row = cur.fetchone()\n    return row[0] if row else None"},
+    {"id": "clean_4", "category": "secure", "lang": "python", "expect_issue": false, "code": "import subprocess\n\ndef version():\n    out = subprocess.run([\"python3\", \"--version\"], capture_output=True, text=True)\n    return out.stdout.strip()"},
+    {"id": "clean_5", "category": "correct", "lang": "javascript", "expect_issue": false, "code": "for (let i = 0; i < 5; i++) {\n  setTimeout(() => console.log(i), 100);\n}"},
+    {"id": "clean_6", "category": "correct", "lang": "javascript", "expect_issue": false, "code": "async function loadUser(id) {\n  const res = await fetch(`/api/users/${id}`);\n  if (!res.ok) throw new Error('not found');\n  return res.json();\n}"},
+    {"id": "clean_7", "category": "correct", "lang": "c", "expect_issue": false, "code": "#include <stdio.h>\n\nint main(void) {\n    int i;\n    for (i = 0; i < 3; i++) {\n        printf(\"%d\\n\", i);\n    }\n    return 0;\n}"},
+    {"id": "clean_8", "category": "correct", "lang": "cpp", "expect_issue": false, "code": "#include <vector>\n#include <string>\n\nstd::string join(const std::vector<std::string>& parts, const std::string& sep) {\n    std::string out;\n    for (size_t i = 0; i < parts.size(); ++i) {\n        if (i) out += sep;\n        out += parts[i];\n    }\n    return out;\n}"},
+    {"id": "clean_9", "category": "correct", "lang": "c", "expect_issue": false, "code": "#include <stdlib.h>\n#include <string.h>\n\nchar *dup_str(const char *s) {\n    size_t n = strlen(s) + 1;\n    char *out = malloc(n);\n    if (out) memcpy(out, s, n);\n    return out;\n}"},
+    {"id": "clean_10", "category": "correct", "lang": "python", "expect_issue": false, "code": "def flatten(nested):\n    out = []\n    for item in nested:\n        if isinstance(item, list):\n            out.extend(flatten(item))\n        else:\n            out.append(item)\n    return out"},
+    {"id": "clean_11", "category": "secure", "lang": "python", "expect_issue": false, "code": "import hmac\nimport hashlib\n\ndef valid_token(tok, secret, provided):\n    expected = hmac.new(secret.encode(), tok.encode(), hashlib.sha256).hexdigest()\n    return hmac.compare_digest(expected, provided)"}
+  ]
+}

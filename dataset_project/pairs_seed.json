@@ -477,11 +477,11 @@
     "pair_id": "clean_standalone_2",
     "category": "Quality",
     "buggy": {
-      "code": "from contextlib import contextmanager\n\n@contextmanager\ndef timer(label):\n    start = time.time()\n    try:\n        yield\n    finally:\n        elapsed = time.time() - start\n        print(f\"{label}: {elapsed:.2f}s\")",
+      "code": "import time\nfrom contextlib import contextmanager\n\n@contextmanager\ndef timer(label):\n    start = time.time()\n    try:\n        yield\n    finally:\n        elapsed = time.time() - start\n        print(f\"{label}: {elapsed:.2f}s\")",
       "issues": []
     },
     "fixed": {
-      "code": "from contextlib import contextmanager\n\n@contextmanager\ndef timer(label):\n    start = time.time()\n    try:\n        yield\n    finally:\n        elapsed = time.time() - start\n        print(f\"{label}: {elapsed:.2f}s\")",
+      "code": "import time\nfrom contextlib import contextmanager\n\n@contextmanager\ndef timer(label):\n    start = time.time()\n    try:\n        yield\n    finally:\n        elapsed = time.time() - start\n        print(f\"{label}: {elapsed:.2f}s\")",
       "issues": []
     }
   },
@@ -620,6 +620,237 @@
     },
     "fixed": {
       "code": "def add_item(item, items=None):\n    # Fixed mutable default argument bug\n    if items is None:\n        items = []\n    items.append(item)\n    return items",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "requests_no_timeout_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "import requests\n\ndef fetch_data(url):\n    response = requests.get(url)\n    return response.json()",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 4,
+          "problem": "HTTP request made without a timeout",
+          "explanation": "requests.get without a timeout will hang indefinitely if the server never responds, which can cause the whole application to stall on a single slow or unresponsive request.",
+          "fix": "Always specify a timeout: requests.get(url, timeout=10)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import requests\n\ndef fetch_data(url):\n    response = requests.get(url, timeout=10)\n    return response.json()",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "shell_true_subprocess_1",
+    "category": "Security",
+    "buggy": {
+      "code": "import subprocess\n\ndef run_backup(backup_name):\n    subprocess.run(f\"tar -czf {backup_name}.tar.gz ./data\", shell=True)",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 4,
+          "problem": "subprocess call with shell=True using unsanitized input",
+          "explanation": "shell=True passes the command through a shell interpreter, so if backup_name contains shell metacharacters (e.g. '; rm -rf /'), an attacker can inject arbitrary commands.",
+          "fix": "Avoid shell=True and pass arguments as a list instead: subprocess.run(['tar', '-czf', f'{backup_name}.tar.gz', './data'])"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import subprocess\n\ndef run_backup(backup_name):\n    subprocess.run([\"tar\", \"-czf\", f\"{backup_name}.tar.gz\", \"./data\"])",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "weak_hash_sha1_1",
+    "category": "Security",
+    "buggy": {
+      "code": "import hashlib\n\ndef hash_password(password):\n    return hashlib.sha1(password.encode()).hexdigest()",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "Medium",
+          "line": 4,
+          "problem": "Weak hash algorithm (SHA1) used for password hashing",
+          "explanation": "SHA1 is cryptographically broken and far too fast for password hashing, making brute-force and rainbow table attacks practical. Passwords need a purpose-built slow hash, not a general-purpose digest.",
+          "fix": "Use a password-specific hashing algorithm like bcrypt or argon2: bcrypt.hashpw(password.encode(), bcrypt.gensalt())"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import bcrypt\n\ndef hash_password(password):\n    return bcrypt.hashpw(password.encode(), bcrypt.gensalt())",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "exec_untrusted_config_1",
+    "category": "Security",
+    "buggy": {
+      "code": "def load_config(filename):\n    with open(filename) as config_file:\n        exec(compile(config_file.read(), filename, \"exec\"))",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 3,
+          "problem": "exec() used to load a configuration file",
+          "explanation": "exec runs arbitrary Python code from the file. If an attacker can control or modify the config file's contents, they can execute arbitrary code with the privileges of the running process.",
+          "fix": "Use a safe, data-only config format like JSON, TOML, or YAML (with safe_load) instead of executable Python."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import json\n\ndef load_config(filename):\n    with open(filename) as config_file:\n        return json.load(config_file)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "partial_executable_path_1",
+    "category": "Security",
+    "buggy": {
+      "code": "import subprocess\n\ndef list_files(directory):\n    subprocess.run([\"ls\", \"-la\", directory])",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "Low",
+          "line": 4,
+          "problem": "Starting a process with a partial executable path",
+          "explanation": "Using just 'ls' relies on the system PATH to resolve the executable. If an attacker can manipulate PATH or place a malicious 'ls' earlier in it, the wrong binary could execute instead of the intended one.",
+          "fix": "Use the full, absolute path to the executable: subprocess.run(['/bin/ls', '-la', directory])"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import subprocess\n\ndef list_files(directory):\n    subprocess.run([\"/bin/ls\", \"-la\", directory])",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "lru_cache_on_method_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "from functools import lru_cache\n\nclass ColorParser:\n    @lru_cache(maxsize=None)\n    def parse(self, color_string):\n        return self._do_parse(color_string)",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Low",
+          "line": 4,
+          "problem": "lru_cache used on an instance method",
+          "explanation": "lru_cache on a method caches based on all arguments including self, which keeps a reference to each instance alive for the lifetime of the cache, preventing garbage collection and causing a memory leak if many instances are created.",
+          "fix": "Use functools.cache at the module/function level instead, or implement per-instance caching manually, e.g. storing results in an instance dict."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "class ColorParser:\n    def __init__(self):\n        self._cache = {}\n\n    def parse(self, color_string):\n        if color_string not in self._cache:\n            self._cache[color_string] = self._do_parse(color_string)\n        return self._cache[color_string]",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "closure_loop_variable_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def make_validators(field_names):\n    validators = []\n    for name in field_names:\n        def validator(value):\n            return name in value\n        validators.append(validator)\n    return validators",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 4,
+          "problem": "Function definition does not bind the loop variable",
+          "explanation": "All the validator closures share the same reference to the loop variable 'name', not its value at creation time. By the time any validator is called, 'name' holds whatever value it had after the loop finished, so every validator checks the same (last) field.",
+          "fix": "Bind the current value explicitly using a default argument: def validator(value, name=name): return name in value"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def make_validators(field_names):\n    validators = []\n    for name in field_names:\n        def validator(value, name=name):\n            return name in value\n        validators.append(validator)\n    return validators",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "unused_variable_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def process_order(order):\n    total = 0\n    discount = order.get(\"discount\", 0)\n    for item in order[\"items\"]:\n        total += item[\"price\"]\n    return total",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Low",
+          "line": 3,
+          "problem": "Local variable assigned but never used",
+          "explanation": "discount is read from the order but never applied anywhere in the calculation. This is likely an incomplete implementation -- either the discount logic is missing, or this is dead code that should be removed.",
+          "fix": "Either apply the discount to the total (e.g. total -= total * discount), or remove the unused variable if it is genuinely not needed."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def process_order(order):\n    total = 0\n    discount = order.get(\"discount\", 0)\n    for item in order[\"items\"]:\n        total += item[\"price\"]\n    total -= total * discount\n    return total",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "undefined_name_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def greet_user(user):\n    message = f\"Hello, {name}!\"\n    return message",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 2,
+          "problem": "Undefined name used in f-string",
+          "explanation": "The function parameter is named 'user', but the f-string references 'name', which is not defined anywhere in this scope. This will raise a NameError at runtime.",
+          "fix": "Use the correct variable name: f\"Hello, {user}!\""
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def greet_user(user):\n    message = f\"Hello, {user}!\"\n    return message",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "ambiguous_var_name_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def sum_values(values):\n    l = 0\n    for v in values:\n        l += v\n    return l",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Low",
+          "line": 2,
+          "problem": "Ambiguous variable name 'l'",
+          "explanation": "The single letter 'l' is easily confused with the digit '1' or the letter 'I' depending on font, making code harder to read and more error-prone to review.",
+          "fix": "Use a descriptive name instead: total = 0 ... total += v ... return total"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def sum_values(values):\n    total = 0\n    for v in values:\n        total += v\n    return total",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "zip_without_strict_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def combine_names(first_names, last_names):\n    return [f\"{f} {l}\" for f, l in zip(first_names, last_names)]",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Low",
+          "line": 2,
+          "problem": "zip() used without strict=True on lists that are expected to be the same length",
+          "explanation": "If first_names and last_names have different lengths, zip silently truncates to the shorter one instead of raising an error, which can silently drop data and hide a bug in whatever produced these lists.",
+          "fix": "Use zip(first_names, last_names, strict=True) so a length mismatch raises a clear ValueError instead of silently truncating."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def combine_names(first_names, last_names):\n    return [f\"{f} {l}\" for f, l in zip(first_names, last_names, strict=True)]",
       "issues": []
     }
   },

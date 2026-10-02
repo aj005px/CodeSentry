@@ -12,16 +12,8 @@ from peft import PeftModel
 BASE_MODEL_PATH = "./models/qwen2.5-coder-3b"
 ADAPTER_PATH = "./dataset_project/lora-code-reviewer"
 
-SYSTEM_PROMPT = """You are a code review assistant. Given a code snippet, \
-identify issues and return them in this exact format for each issue found:
-
-Category: [Bug|Performance|Quality|Security]
-Severity: [Low|Medium|High]
-Line: <line number>
-Problem: <one-line description>
-Explanation: <why this is a problem>
-Suggested Fix: <concrete fix>
-"""
+# Same import as test.py: inference must use the exact prompt used in training.
+from dataset_project.build_dataset import SYSTEM_PROMPT
 
 print("Loading base model...")
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_PATH)
