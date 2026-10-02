@@ -126,6 +126,504 @@
     }
   },
   {
+    "pair_id": "py2_except_syntax_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def get_current_user(session, token):\n    try:\n        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[security.ALGORITHM])\n        token_data = TokenPayload(**payload)\n    except InvalidTokenError, ValidationError:\n        raise HTTPException(status_code=403, detail=\"Could not validate credentials\")\n    user = session.get(User, token_data.sub)\n    return user",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 5,
+          "problem": "Invalid Python 3 syntax for catching multiple exceptions",
+          "explanation": "The comma-separated except syntax (except A, B:) is Python 2 syntax and is a SyntaxError in Python 3. This will crash immediately on import, not just when the exception occurs.",
+          "fix": "Use a tuple: except (InvalidTokenError, ValidationError):"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_current_user(session, token):\n    try:\n        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[security.ALGORITHM])\n        token_data = TokenPayload(**payload)\n    except (InvalidTokenError, ValidationError) as e:\n        raise HTTPException(status_code=403, detail=\"Could not validate credentials\") from e\n    user = session.get(User, token_data.sub)\n    return user",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "raise_from_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def parse_config(raw):\n    try:\n        return json.loads(raw)\n    except json.JSONDecodeError:\n        raise ValueError(\"Invalid config format\")",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Low",
+          "line": 5,
+          "problem": "Exception re-raised without preserving original context",
+          "explanation": "Raising a new exception inside an except block without 'from err' or 'from None' loses the original traceback, making it harder to debug what actually caused the failure.",
+          "fix": "Use 'raise ValueError(...) from e' to preserve the original exception chain, or 'from None' to explicitly suppress it if intentional."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def parse_config(raw):\n    try:\n        return json.loads(raw)\n    except json.JSONDecodeError as e:\n        raise ValueError(\"Invalid config format\") from e",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "n_squared_lookup_1",
+    "category": "Performance",
+    "buggy": {
+      "code": "def find_duplicates(items):\n    duplicates = []\n    for i in range(len(items)):\n        for j in range(len(items)):\n            if i != j and items[i] == items[j] and items[i] not in duplicates:\n                duplicates.append(items[i])\n    return duplicates",
+      "issues": [
+        {
+          "category": "Performance",
+          "severity": "Medium",
+          "line": 3,
+          "problem": "O(n^2) time complexity for duplicate detection",
+          "explanation": "Nested loops comparing every pair of elements makes this scale quadratically. For large lists this becomes very slow. A set-based approach can do this in linear time.",
+          "fix": "Use a set to track seen items: seen = set(); dupes = set(); for item in items: if item in seen: dupes.add(item) else: seen.add(item); return list(dupes)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def find_duplicates(items):\n    seen = set()\n    duplicates = set()\n    for item in items:\n        if item in seen:\n            duplicates.add(item)\n        else:\n            seen.add(item)\n    return list(duplicates)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "query_in_loop_1",
+    "category": "Performance",
+    "buggy": {
+      "code": "def get_order_totals(order_ids):\n    totals = []\n    for order_id in order_ids:\n        order = db.query(f\"SELECT * FROM orders WHERE id = {order_id}\")\n        totals.append(order.total)\n    return totals",
+      "issues": [
+        {
+          "category": "Performance",
+          "severity": "High",
+          "line": 3,
+          "problem": "Database query executed inside a loop (N+1 query problem)",
+          "explanation": "This issues one database round-trip per order_id instead of fetching all needed rows in a single query. For large lists of IDs, this creates significant, avoidable latency.",
+          "fix": "Fetch all rows in one query using an IN clause: db.query(\"SELECT * FROM orders WHERE id IN (...)\", order_ids), then map results back to totals."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_order_totals(order_ids):\n    orders = db.query(\"SELECT * FROM orders WHERE id IN (%s)\" % \",\".join(map(str, order_ids)))\n    return [order.total for order in orders]",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "string_concat_loop_1",
+    "category": "Performance",
+    "buggy": {
+      "code": "def build_report(rows):\n    report = \"\"\n    for row in rows:\n        report += str(row) + \"\\n\"\n    return report",
+      "issues": [
+        {
+          "category": "Performance",
+          "severity": "Low",
+          "line": 4,
+          "problem": "Repeated string concatenation in a loop",
+          "explanation": "Strings are immutable in Python, so += on a string creates a new string object each iteration, copying all prior content. For large row counts, this becomes quadratic in cost.",
+          "fix": "Build a list and join once at the end: lines = [str(row) for row in rows]; return \"\\n\".join(lines)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def build_report(rows):\n    lines = [str(row) for row in rows]\n    return \"\\n\".join(lines)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "unnecessary_list_copy_1",
+    "category": "Performance",
+    "buggy": {
+      "code": "def has_permission(user, required_permissions):\n    all_perms = list(user.permissions)\n    for perm in required_permissions:\n        if perm not in all_perms:\n            return False\n    return True",
+      "issues": [
+        {
+          "category": "Performance",
+          "severity": "Low",
+          "line": 2,
+          "problem": "Membership checks against a list instead of a set",
+          "explanation": "`in` on a list is O(n) per check, so checking membership repeatedly in a loop against a list scales poorly. Converting to a set makes each check O(1).",
+          "fix": "Convert to a set once: all_perms = set(user.permissions)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def has_permission(user, required_permissions):\n    all_perms = set(user.permissions)\n    for perm in required_permissions:\n        if perm not in all_perms:\n            return False\n    return True",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "path_traversal_1",
+    "category": "Security",
+    "buggy": {
+      "code": "def read_user_file(filename):\n    path = os.path.join(\"/var/app/uploads\", filename)\n    with open(path) as f:\n        return f.read()",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 2,
+          "problem": "Path traversal vulnerability",
+          "explanation": "If filename comes from user input and contains something like '../../etc/passwd', os.path.join will happily construct a path outside the intended uploads directory, allowing an attacker to read arbitrary files.",
+          "fix": "Validate and sanitize filename before joining, e.g. reject any value containing '..' or path separators, or resolve the final path and confirm it's still inside the uploads directory."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def read_user_file(filename):\n    base_dir = os.path.abspath(\"/var/app/uploads\")\n    path = os.path.abspath(os.path.join(base_dir, filename))\n    if not path.startswith(base_dir):\n        raise ValueError(\"Invalid filename\")\n    with open(path) as f:\n        return f.read()",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "weak_random_1",
+    "category": "Security",
+    "buggy": {
+      "code": "import random\n\ndef generate_reset_token():\n    return str(random.randint(100000, 999999))",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 4,
+          "problem": "Insecure random number generator used for a security token",
+          "explanation": "Python's random module is not cryptographically secure and is predictable given enough output. Using it for password reset tokens makes them guessable, allowing account takeover attacks.",
+          "fix": "Use the secrets module instead: import secrets; return secrets.token_urlsafe(32)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import secrets\n\ndef generate_reset_token():\n    return secrets.token_urlsafe(32)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "command_injection_1",
+    "category": "Security",
+    "buggy": {
+      "code": "import os\n\ndef ping_host(hostname):\n    os.system(\"ping -c 1 \" + hostname)",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 4,
+          "problem": "Command injection vulnerability",
+          "explanation": "hostname is concatenated directly into a shell command. An attacker could pass something like 'google.com; rm -rf /' to execute arbitrary shell commands.",
+          "fix": "Use subprocess with a list of arguments instead of os.system, which avoids shell interpretation: subprocess.run(['ping', '-c', '1', hostname])"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import subprocess\n\ndef ping_host(hostname):\n    subprocess.run([\"ping\", \"-c\", \"1\", hostname], check=True)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "xss_unescaped_1",
+    "category": "Security",
+    "buggy": {
+      "code": "def render_comment(comment_text):\n    return f\"<div class='comment'>{comment_text}</div>\"",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 2,
+          "problem": "Cross-site scripting (XSS) vulnerability",
+          "explanation": "comment_text is inserted directly into HTML without escaping. If it contains a script tag, the browser will execute it, allowing attackers to run arbitrary JavaScript in other users' sessions.",
+          "fix": "Escape the text before embedding it in HTML, e.g. using html.escape(comment_text), or use a templating engine with autoescaping enabled."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import html\n\ndef render_comment(comment_text):\n    safe_text = html.escape(comment_text)\n    return f\"<div class='comment'>{safe_text}</div>\"",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "insecure_deserialize_1",
+    "category": "Security",
+    "buggy": {
+      "code": "import pickle\n\ndef load_session(data):\n    return pickle.loads(data)",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 4,
+          "problem": "Insecure deserialization using pickle on untrusted data",
+          "explanation": "pickle.loads can execute arbitrary code during deserialization. If data comes from an untrusted source (like a user-controlled cookie or request body), an attacker can craft a payload that runs arbitrary code.",
+          "fix": "Use a safe serialization format like JSON instead of pickle for any data that may come from untrusted sources: json.loads(data)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import json\n\ndef load_session(data):\n    return json.loads(data)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "auth_bypass_1",
+    "category": "Security",
+    "buggy": {
+      "code": "def login(username, password):\n    user = db.get_user(username)\n    if user.password == password:\n        return create_session(user)\n    return None",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 3,
+          "problem": "Plaintext password comparison",
+          "explanation": "Passwords should never be stored or compared in plaintext. If the database is compromised, all passwords are immediately exposed. Additionally, direct string comparison can be vulnerable to timing attacks.",
+          "fix": "Store a salted hash of the password and compare using a constant-time hash comparison function, e.g. bcrypt.checkpw(password.encode(), user.password_hash)"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import bcrypt\n\ndef login(username, password):\n    user = db.get_user(username)\n    if bcrypt.checkpw(password.encode(), user.password_hash):\n        return create_session(user)\n    return None",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "null_deref_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def get_user_email(user_id):\n    user = db.find_user(user_id)\n    return user.email",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 3,
+          "problem": "No null check before attribute access",
+          "explanation": "If db.find_user returns None when no user matches user_id, accessing .email will raise an AttributeError and crash the function instead of handling the missing-user case gracefully.",
+          "fix": "Check for None before accessing attributes: if user is None: return None (or raise a clear, specific exception)."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_user_email(user_id):\n    user = db.find_user(user_id)\n    if user is None:\n        return None\n    return user.email",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "type_coercion_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def calculate_discount(price, discount_percent):\n    return price - (price * discount_percent / 100)\n\ntotal = calculate_discount(\"100\", 10)",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 4,
+          "problem": "String passed where a numeric type is expected",
+          "explanation": "price is passed as the string \"100\" instead of a number. Depending on the language/runtime this either raises a TypeError or silently produces wrong results through implicit coercion, rather than the intended numeric calculation.",
+          "fix": "Validate or convert input types before performing arithmetic: ensure price is cast to float/int, or raise a clear error if it cannot be converted."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def calculate_discount(price, discount_percent):\n    price = float(price)\n    return price - (price * discount_percent / 100)\n\ntotal = calculate_discount(\"100\", 10)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "race_condition_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "balance = 100\n\ndef withdraw(amount):\n    global balance\n    if amount <= balance:\n        balance -= amount\n        return True\n    return False",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 4,
+          "problem": "Race condition on shared mutable state",
+          "explanation": "If withdraw is called concurrently from multiple threads, two calls could both pass the 'amount <= balance' check before either updates balance, allowing the balance to go negative (a classic check-then-act race condition).",
+          "fix": "Use a lock to make the check-and-update atomic: with lock: if amount <= balance: balance -= amount; return True"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "import threading\n\nbalance = 100\nlock = threading.Lock()\n\ndef withdraw(amount):\n    global balance\n    with lock:\n        if amount <= balance:\n            balance -= amount\n            return True\n        return False",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "integer_overflow_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def get_item(items, index):\n    if index < len(items):\n        return items[index]\n    return None",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 2,
+          "problem": "Missing check for negative index",
+          "explanation": "The check only verifies index < len(items), but negative indices are valid in Python and will wrap around to access items from the end of the list, which is likely not the intended behavior for an out-of-bounds check.",
+          "fix": "Also check that index is non-negative: if 0 <= index < len(items): return items[index]"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_item(items, index):\n    if 0 <= index < len(items):\n        return items[index]\n    return None",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "clean_standalone_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def calculate_tax(amount, rate):\n    if amount < 0:\n        raise ValueError(\"Amount cannot be negative\")\n    if not (0 <= rate <= 1):\n        raise ValueError(\"Rate must be between 0 and 1\")\n    return round(amount * rate, 2)",
+      "issues": []
+    },
+    "fixed": {
+      "code": "def calculate_tax(amount, rate):\n    if amount < 0:\n        raise ValueError(\"Amount cannot be negative\")\n    if not (0 <= rate <= 1):\n        raise ValueError(\"Rate must be between 0 and 1\")\n    return round(amount * rate, 2)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "clean_standalone_2",
+    "category": "Quality",
+    "buggy": {
+      "code": "from contextlib import contextmanager\n\n@contextmanager\ndef timer(label):\n    start = time.time()\n    try:\n        yield\n    finally:\n        elapsed = time.time() - start\n        print(f\"{label}: {elapsed:.2f}s\")",
+      "issues": []
+    },
+    "fixed": {
+      "code": "from contextlib import contextmanager\n\n@contextmanager\ndef timer(label):\n    start = time.time()\n    try:\n        yield\n    finally:\n        elapsed = time.time() - start\n        print(f\"{label}: {elapsed:.2f}s\")",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "clean_standalone_3",
+    "category": "Security",
+    "buggy": {
+      "code": "import secrets\nimport hmac\n\ndef verify_webhook_signature(payload, signature, secret):\n    expected = hmac.new(secret.encode(), payload, \"sha256\").hexdigest()\n    return hmac.compare_digest(expected, signature)",
+      "issues": []
+    },
+    "fixed": {
+      "code": "import secrets\nimport hmac\n\ndef verify_webhook_signature(payload, signature, secret):\n    expected = hmac.new(secret.encode(), payload, \"sha256\").hexdigest()\n    return hmac.compare_digest(expected, signature)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "nearmiss_sql_fixed_1",
+    "category": "Security",
+    "buggy": {
+      "code": "def get_user(username):\n    # Previously vulnerable to SQL injection, now using parameterized query\n    query = \"SELECT * FROM users WHERE username = \" + username\n    cursor.execute(query)\n    return cursor.fetchone()",
+      "issues": [
+        {
+          "category": "Security",
+          "severity": "High",
+          "line": 3,
+          "problem": "SQL injection vulnerability despite comment claiming it is fixed",
+          "explanation": "The comment says this was fixed with a parameterized query, but the actual code still concatenates username directly into the query string. The comment does not match the code -- always verify the actual code, not comments describing it.",
+          "fix": "Use an actual parameterized query: query = \"SELECT * FROM users WHERE username = ?\"; cursor.execute(query, (username,))"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_user(username):\n    # Previously vulnerable to SQL injection, now using parameterized query\n    query = \"SELECT * FROM users WHERE username = ?\"\n    cursor.execute(query, (username,))\n    return cursor.fetchone()",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "nearmiss_null_check_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def get_user_email(user_id):\n    # Fixed: now handles missing users\n    user = db.find_user(user_id)\n    return user.email",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 4,
+          "problem": "No null check present despite comment claiming the fix was made",
+          "explanation": "The comment claims missing users are now handled, but there is still no check for user being None before accessing .email. The comment does not reflect the actual code's behavior.",
+          "fix": "Add an actual null check: if user is None: return None"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def get_user_email(user_id):\n    # Fixed: now handles missing users\n    user = db.find_user(user_id)\n    if user is None:\n        return None\n    return user.email",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "nearmiss_divzero_fixed_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def calculate_average(numbers):\n    # Handles empty list case\n    return sum(numbers) / len(numbers)",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 3,
+          "problem": "Division by zero not actually handled despite comment",
+          "explanation": "The comment claims the empty list case is handled, but there is no check for an empty list before dividing. If numbers is empty, len(numbers) is 0 and this raises a ZeroDivisionError.",
+          "fix": "Add an actual check: if not numbers: return 0, before the division."
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def calculate_average(numbers):\n    # Handles empty list case\n    if not numbers:\n        return 0\n    return sum(numbers) / len(numbers)",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "nearmiss_assert_similar_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def withdraw(account, amount):\n    assert amount <= account.balance, \"Insufficient funds\"\n    account.balance -= amount",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "High",
+          "line": 2,
+          "problem": "Critical balance check implemented with assert instead of a real conditional",
+          "explanation": "assert statements are stripped out when Python runs with the -O optimization flag. Using assert to guard a financial operation means this safety check can silently disappear in production, allowing balance to go negative.",
+          "fix": "Replace with a real conditional and exception: if amount > account.balance: raise ValueError(\"Insufficient funds\")"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def withdraw(account, amount):\n    if amount > account.balance:\n        raise ValueError(\"Insufficient funds\")\n    account.balance -= amount",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "nearmiss_resource_fixed_1",
+    "category": "Quality",
+    "buggy": {
+      "code": "def read_config(path):\n    # Updated to use context manager for proper cleanup\n    f = open(path)\n    data = f.read()\n    return data",
+      "issues": [
+        {
+          "category": "Quality",
+          "severity": "Medium",
+          "line": 4,
+          "problem": "File handle still not closed, despite comment claiming context manager usage",
+          "explanation": "The comment says this was updated to use a context manager, but the code still uses a plain open() call without a with statement, so the file handle is never explicitly closed.",
+          "fix": "Actually use a context manager: with open(path) as f: return f.read()"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def read_config(path):\n    # Updated to use context manager for proper cleanup\n    with open(path) as f:\n        return f.read()",
+      "issues": []
+    }
+  },
+  {
+    "pair_id": "nearmiss_mutable_default_fixed_1",
+    "category": "Bug",
+    "buggy": {
+      "code": "def add_item(item, items=[]):\n    # Fixed mutable default argument bug\n    items.append(item)\n    return items",
+      "issues": [
+        {
+          "category": "Bug",
+          "severity": "Medium",
+          "line": 1,
+          "problem": "Mutable default argument still present despite comment claiming it was fixed",
+          "explanation": "The comment claims this bug is fixed, but items=[] is still a mutable default argument, which is evaluated once and shared across calls, accumulating state unexpectedly.",
+          "fix": "Use None as default and create a new list inside the function: def add_item(item, items=None): items = items or []"
+        }
+      ]
+    },
+    "fixed": {
+      "code": "def add_item(item, items=None):\n    # Fixed mutable default argument bug\n    if items is None:\n        items = []\n    items.append(item)\n    return items",
+      "issues": []
+    }
+  },
+  {
     "pair_id": "bare_except_1",
     "category": "Quality",
     "buggy": {
