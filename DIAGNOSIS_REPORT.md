@@ -338,3 +338,145 @@ Do not judge on training loss. Judge on the held-out set:
   `rng_state.pth` resume state. The shipped adapter is byte-identical to
   `checkpoint-39` (the best one), so these were redundant. The training curve was
   preserved in `dataset_project/v2_training_state.json` before deletion.
+---
+
+## 8. Combined review pipeline (added after the retrain)
+
+The retrained adapter is now wrapped in a review service that merges
+deterministic static analysis with the model's judgement. Sections 1-7 are about
+why the first adapter collapsed; this section is about what was built on top of
+the fix.
+
+### Premise correction
+
+`combined_review.py` was specified as an existing untested first draft. It did
+not exist — no file, no stash, no branch. It was built from scratch rather than
+verified.
+
+### Why merge at all
+
+The two halves fail in opposite directions, which is the argument for combining
+them rather than picking one:
+
+- **Static analysis (Bandit, Ruff)** is exact and explains itself, but only
+  covers Python and only the defect classes those tools implement. On
+  `samples/buggy.js` it correctly reports nothing, because it cannot see a
+  missing `await`.
+- **The fine-tuned model** covers any language and the defects a linter has no
+  rule for, but it hallucinates and it is stochastic in cost (seconds to
+  minutes per snippet on CPU).
+
+So the merge is not a vote. The rule is asymmetric:
+
+> **A static finding is never dropped.**
+
+If the model independently reports the same defect, the two collapse into one
+finding whose `sources` lists both — that is what `corroborated` counts. If the
+model stays silent, the static finding still ships. A model failure, a
+hallucination, or a future retrain therefore cannot suppress a Bandit hit.
+
+Bandit's `B608` and Ruff's `S608` fire on the same line with near-identical
+text, so they merge with each other too. On `samples/vulnerable.py`:
+
+| finding | line | sources |
+|---|---|---|
+| shell injection (`B605`/`S602`) | 12 | `bandit+ruff` |
+| SQL injection (`B608`/`S608`) | 5 | `bandit+ruff` |
+| `eval` on file contents (`B307`) | 9 | `bandit+ruff` |
+| unused `sqlite3` import (`F401`) | 1 | `ruff` |
+
+The verdict comes from merged evidence, not from the model: a Bandit hit still
+reports `issues_found` even when the LLM said the code was clean.
+
+### Components
+
+`review_core.py` holds the engine. Static analysis and the LLM reviewer are
+deliberately independent — each returns `list[Finding]` and knows nothing about
+the other. `review_code()` is the only place they meet. That separation is the
+point: the model can be retrained or swapped without touching the analyzers.
+
+`parse_llm_output()` is a line-based state machine, not one regex. Per the §3
+diagnosis, the old failure was a degenerate target, and a degenerate parser
+would just move the problem. Its contract:
+
+- never raises on unexpected input
+- recovers multiple issues from one response (a `Category:` line opens a new
+  block)
+- tolerates markdown fences, bold labels, preamble prose, lower case, missing
+  colons, wrapped continuation lines
+- normalises `Category`/`Severity` onto the schema via a synonym table
+- **never discards a partially complete finding** — a block with only a
+  `Category:` is still reported, with the rest `None`
+- unparseable output yields `verdict: unknown`, never a false clean bill
+
+Two bugs found and fixed during this build, both caught by tests rather than by
+inspection:
+
+1. `merge_findings()` originally deduped LLM-vs-static but never
+   static-vs-static, so Bandit and Ruff reported the same SQL injection twice —
+   contradicting its own docstring.
+2. Fields appearing before any `Category:` fragmented one finding into two; the
+   parser now completes the open block instead of splitting it.
+
+Bandit's `more_info` is a documentation URL, not a fix, so it is folded into the
+explanation rather than emitted as `Suggested Fix`, which would mislead a UI.
+
+### Two bugs in the environment, not the code
+
+Worth recording because they cost real time and will recur:
+
+- **`ruff check --json` no longer exists** in ruff 0.16; it is
+  `--output-format json`.
+- **Bandit 1.9.4 has no `--stdin-filename`.** It reads stdin with a bare `-`,
+  but logs `[main] INFO ...` to *stdout*, which corrupts the JSON. `-q` is
+  required or the output will not parse.
+
+### The API
+
+`api.py` exposes `POST /review`, `GET /health`, `POST /warmup`. The response
+shape is the contract a future UI depends on:
+
+```json
+{ "verdict": "issues_found|no_issues_found|unknown",
+  "language": "python",
+  "findings": [ {"category","severity","line","problem","explanation",
+                 "suggested_fix","sources","tool_ref","confidence"} ],
+  "summary": {"total","by_severity","by_category","by_source","corroborated"},
+  "llm": {"ran","parse_ok","raw"},
+  "skipped": [{"name","reason"}], "errors": [], "timings_ms": {} }
+```
+
+`llm.ran` is explicit because with the LLM disabled `parse_ok` is vacuously
+true, which would otherwise read as "the model ran and was happy".
+
+Two operational consequences of a 3B model on a 14 GB CPU-only box: the model is
+a lazily-loaded process-wide singleton (~6.2 GB, minutes to load, seconds after),
+and endpoints are sync `def` so FastAPI runs them in its threadpool and reviews
+serialise behind a lock rather than risking an OOM.
+
+### Verification
+
+| suite | checks | needs RAM? |
+|---|---|---|
+| `test_parser.py` | 17 | no |
+| `test_merge.py` | 35 | no (LLM stubbed) |
+| `test_api.py` | 51 | no, unless `--with-llm` |
+
+103 checks, all green. The merge suite stubs the LLM on purpose: what matters
+there is "does a static finding survive the merge", and that should not require
+a 7 GB model to assert. `samples/` holds three snippets for manual runs —
+`vulnerable.py`, `buggy.js` (the LLM-only case), `clean.py` (the
+no-false-positive control).
+
+### Still unverified
+
+**The live LLM inside the merge path has never run.** This box has ~9.7 GB
+resident before the model loads (Zed 1.9, opencode 1.8, clamd 0.95, Brave 1.5,
+mysqld 0.35) against 14 GB with swap exhausted, so the 6.2 GB bf16 load is
+OOM-killed. Everything above is verified with the model stubbed or disabled.
+
+The adapter's *output format* is well covered — `test_parser.py` plus the 20-case
+run in §2b — but `python test_api.py --with-llm` still needs one run with ~7 GB
+free, to confirm the LLM's findings actually corroborate Bandit's on real input
+rather than only on canned strings. Treat the pipeline as untested at the seam
+until that runs.

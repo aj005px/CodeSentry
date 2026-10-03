@@ -134,6 +134,10 @@ def main() -> int:
         for key in ("verdict", "language", "findings", "summary", "llm",
                     "skipped", "errors", "timings_ms", "status"):
             check(f"response has '{key}'", key in d)
+        check("llm.ran is False when the model was not used",
+              d["llm"]["ran"] is False, str(d["llm"]["ran"]))
+        check("llm.raw is null when the model was not used",
+              d["llm"]["raw"] is None, str(d["llm"]["raw"]))
         check("status == ok", d.get("status") == "ok", str(d.get("status")))
         check("language == python", d.get("language") == "python", str(d.get("language")))
         check("verdict == issues_found", d.get("verdict") == "issues_found",
@@ -166,6 +170,7 @@ def main() -> int:
         check("no analyzer errors", not d["errors"], str(d["errors"]))
 
         if use_llm:
+            check("llm.ran is True", d["llm"]["ran"] is True, str(d["llm"]["ran"]))
             check("llm parse_ok", d["llm"]["parse_ok"], d["llm"]["raw"] or "")
             check("llm produced raw text", bool(d["llm"]["raw"]))
             check("llm corroborated the SQL injection",

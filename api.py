@@ -30,7 +30,7 @@ keeping stable:
       "findings": [ {category, severity, line, problem, explanation,
                      suggested_fix, sources, tool_ref, confidence}, ... ],
       "summary": {total, by_severity, by_category, by_source, corroborated},
-      "llm":     {parse_ok, raw},
+      "llm":     {ran, parse_ok, raw},
       "skipped": [{name, reason}],
       "errors":  [str],
       "timings_ms": {static, llm}

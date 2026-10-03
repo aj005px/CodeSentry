@@ -85,6 +85,7 @@ class ReviewResult:
     language: str
     llm_raw: str | None = None
     llm_parse_ok: bool = True
+    llm_ran: bool = False
     skipped: list[SkippedAnalyzer] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
@@ -102,6 +103,10 @@ class ReviewResult:
                 "corroborated": sum(1 for f in self.findings if len(f.sources) > 1),
             },
             "llm": {
+                # `ran` is explicit so a consumer can tell "the model ran and
+                # parsed cleanly" from "the model never ran" -- with the LLM
+                # disabled, parse_ok is vacuously true and would mislead.
+                "ran": self.llm_ran,
                 "parse_ok": self.llm_parse_ok,
                 "raw": self.llm_raw,
             },
@@ -727,9 +732,11 @@ def review_code(code: str, language: str | None = None, use_llm: bool = True,
     verdict = VERDICT_CLEAN if static else VERDICT_UNKNOWN
     llm_raw = None
     parse_ok = True
+    llm_ran = False
     llm_findings: list[Finding] = []
 
     if use_llm:
+        llm_ran = True
         t0 = time.perf_counter()
         try:
             llm_raw = get_llm_reviewer().review(code)
@@ -755,5 +762,6 @@ def review_code(code: str, language: str | None = None, use_llm: bool = True,
 
     return ReviewResult(
         verdict=verdict, findings=merged, language=lang, llm_raw=llm_raw,
-        llm_parse_ok=parse_ok, skipped=skipped, errors=errors, timings=timings,
+        llm_parse_ok=parse_ok, llm_ran=llm_ran, skipped=skipped,
+        errors=errors, timings=timings,
     )
