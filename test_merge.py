@@ -155,10 +155,18 @@ check("zero findings", len(r.findings) == 0, str(len(r.findings)))
 
 print("\nLLM crash must not lose static results")
 stub_llm(None)
+_original_static = review_core.run_static_analysis
+review_core.run_static_analysis = lambda *args, **kwargs: (
+    [Finding(category="Security", severity="High",
+             problem="SQL injection", line=4, sources=["bandit"],
+             tool_ref="B608")],
+    [], []
+)
 r = review_code(SQLI, language="python")
 check("static findings survive a model failure", len(r.findings) >= 1, str(len(r.findings)))
 check("verdict still issues_found", r.verdict == VERDICT_ISSUES, r.verdict)
 check("error is recorded", any("llm" in e for e in r.errors), str(r.errors))
+review_core.run_static_analysis = _original_static
 
 print("\nunparseable LLM output is flagged, not silently trusted")
 stub_llm("I'm sorry, I can't do that.")
