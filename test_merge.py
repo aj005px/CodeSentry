@@ -125,9 +125,17 @@ check("line 4 vs 99 kept separate", len(m) == 2, str(len(m)))
 # ------------------------------------------------------------------ the verdict
 print("\nverdict is driven by merged evidence, not the LLM alone")
 stub_llm("Verdict: NO ISSUES FOUND\nThe code is correct.")
+_original_static = review_core.run_static_analysis
+review_core.run_static_analysis = lambda *args, **kwargs: (
+    [Finding(category="Security", severity="High",
+             problem="SQL injection", line=4, sources=["bandit"],
+             tool_ref="B608")],
+    [], []
+)
 r = review_code(SQLI, language="python")
 check("static hit overrides a clean LLM verdict", r.verdict == VERDICT_ISSUES, r.verdict)
 check("findings still present", len(r.findings) >= 1, str(len(r.findings)))
+review_core.run_static_analysis = _original_static
 
 stub_llm("Verdict: ISSUES FOUND\nCategory: Bug\nSeverity: High\nLine: 1\n"
          "Problem: Unused import\nExplanation: sqlite3 never used.\n"
