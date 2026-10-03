@@ -130,7 +130,7 @@ check("safe URL still renders as a link",
 res = {"verdict": VERDICT_ISSUES,
        "findings": [finding(severity="High"), finding(severity="Medium"),
                     finding(severity="Low"), finding(severity="High", reference=REF)],
-       "llm_ran": False}
+       "llm": {"ran": False}}
 html = app._render_result(res)
 check("counts High 2", ">High: 2<" in html)
 check("counts Medium 1", ">Medium: 1<" in html)
@@ -138,7 +138,7 @@ check("counts Low 1", ">Low: 1<" in html)
 check("counts 4 findings", "4 findings" in html)
 check("llm_ran False is disclosed", "LLM disabled" in html)
 
-res2 = {**res, "findings": [], "llm_ran": None}
+res2 = {**res, "findings": [], "llm": {"ran": None}}
 html2 = app._render_result(res2)
 check("llm_ran None is disclosed", "LLM produced no findings" in html2)
 check("empty result explains itself", "No findings were reported" in html2)
@@ -163,7 +163,7 @@ def fake_post(url, json=None, timeout=None):
     captured["url"] = url
     captured["json"] = json
     captured["timeout"] = timeout
-    return _Resp({"verdict": VERDICT_CLEAN, "findings": [], "llm_ran": False})
+    return _Resp({"verdict": VERDICT_CLEAN, "findings": [], "llm": {"ran": False}})
 
 
 app.requests.post = fake_post
