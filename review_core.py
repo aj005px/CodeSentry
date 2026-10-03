@@ -67,6 +67,12 @@ class Finding:
     sources: list[str] = field(default_factory=list)
     tool_ref: str | None = None  # e.g. "B608" or "S608"
     confidence: str | None = None  # static analyzers only
+    # OWASP guidance for Security findings, attached after the merge by
+    # `security_reference.enrich_findings()`. Stays None for non-Security
+    # findings and when the PDF has nothing relevant. Deliberately not part of
+    # the merge: retrieval must not influence which findings exist or how they
+    # are combined.
+    reference: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -527,8 +533,13 @@ class LLMReviewer:
             model.eval()
             # greedy
             model.generation_config = GenerationConfig(
-                max_new_tokens=self.max_new_tokens, do_sample=False,
-                temperature=None, top_p=None, top_k=None,
+                max_new_tokens=self.max_new_tokens,
+                do_sample=False,
+                eos_token_id=self._tokenizer.eos_token_id,
+                pad_token_id=self._tokenizer.pad_token_id,
+                temperature=None,
+                top_p=None,
+                top_k=None,
             )
             self._model = model
 
@@ -709,8 +720,15 @@ def run_static_analysis(code: str, language: str,
 
 def review_code(code: str, language: str | None = None, use_llm: bool = True,
                 use_bandit: bool = True, use_ruff: bool = True,
+                add_owasp_reference: bool = True,
                 ) -> ReviewResult:
-    """Full review: static analysis + LLM, merged."""
+    """Full review: static analysis + LLM, merged.
+
+    `add_owasp_reference` enriches Security findings with OWASP guidance from
+    the PDF after the merge. It is an additive annotation: it can only add a
+    `reference` field, never change which findings exist, their severity, or
+    the verdict.
+    """
     import time
 
     if not code or not code.strip():
@@ -759,6 +777,15 @@ def review_code(code: str, language: str | None = None, use_llm: bool = True,
         verdict = VERDICT_UNKNOWN
     else:
         verdict = VERDICT_CLEAN
+
+    # OWASP enrichment runs last and is additive only. Imported lazily so the
+    # static-analysis-only path never pays for the PDF index.
+    if add_owasp_reference:
+        try:
+            from security_reference import enrich_findings
+            enrich_findings(merged)
+        except Exception as exc:  # enrichment must never fail a review
+            errors.append(f"owasp_reference: {type(exc).__name__}: {exc}")
 
     return ReviewResult(
         verdict=verdict, findings=merged, language=lang, llm_raw=llm_raw,

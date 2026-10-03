@@ -71,6 +71,19 @@ def render_text(result) -> str:
             if ref:
                 lines.append(f"   Ref:     {ref}{conf}")
 
+            owasp = getattr(f, "reference", None)
+            if owasp:
+                where = " ".join(
+                    str(x) for x in (owasp.get("section"),
+                                     f'PDF p{owasp["pdf_page"]}'
+                                     if owasp.get("pdf_page") else None) if x)
+                lines.append(f"   OWASP:   {owasp.get('cheat_sheet', '')}"
+                             + (f"  ({where})" if where else ""))
+                if owasp.get("summary"):
+                    lines.append(f"            {owasp['summary']}")
+                if owasp.get("url"):
+                    lines.append(f"            {owasp['url']}")
+
     if result.skipped:
         lines.append("")
         lines.append("Skipped analyzers:")
@@ -108,6 +121,8 @@ def main() -> int:
                     help="static analysis only; skips the model load entirely")
     ap.add_argument("--no-bandit", action="store_true")
     ap.add_argument("--no-ruff", action="store_true")
+    ap.add_argument("--no-owasp", action="store_true",
+                    help="skip OWASP cheat-sheet reference lookup")
     ap.add_argument("--json", action="store_true", dest="as_json",
                     help="emit the API response shape as JSON")
     args = ap.parse_args()
@@ -127,6 +142,7 @@ def main() -> int:
         use_llm=not args.no_llm,
         use_bandit=not args.no_bandit,
         use_ruff=not args.no_ruff,
+        add_owasp_reference=not args.no_owasp,
     )
 
     if args.as_json:

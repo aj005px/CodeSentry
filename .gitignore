@@ -1,4 +1,33 @@
+# Virtual environment
 .venv/
-models/
+venv/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Test/cache
+.pytest_cache/
+.cache/
+
+# Local models / fine-tuning artifacts
+models/
+lora-code-reviewer-v2/
+
+# Dataset / local data
+dataset_project/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
