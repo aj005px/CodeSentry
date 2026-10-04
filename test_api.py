@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
-PY = str(REPO / ".venv" / "bin" / "python")
+PY = sys.executable
 
 SQLI = '''import sqlite3
 
