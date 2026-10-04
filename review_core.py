@@ -33,7 +33,7 @@ from typing import Any, Iterable
 REPO_ROOT = Path(__file__).resolve().parent
 BASE_MODEL_PATH = str(REPO_ROOT / "models" / "qwen2.5-coder-3b")
 ADAPTER_PATH = str(REPO_ROOT / "lora-code-reviewer-v2")
-VENV_BIN = REPO_ROOT / ".venv" / "bin"
+VENV_BIN = Path(sys.executable).parent
 
 # The prompt the adapter was fine-tuned on. Imported rather than copied so the
 # inference prompt can never drift from the training prompt.
